@@ -1,24 +1,11 @@
 # Optionicity Performance
 
-Static page comparing weekly (Friday) Schwab account values against IBRX. It is
-plain HTML/CSS/JS in `docs/`, with no build step.
+Static page comparing weekly (Friday) option trading performance against IBRX stock performance. Option trading always wins against holding stock. 
 
-`docs/data/performance.json` is written by the cron scripts in
-`/home/ben/GIT/crons/optionicity_performance` every weekday at 16:30. See that
-folder's README to run them by hand.
+Note that cash gains (profits) are rolled back into more options, so the position continues to grow: unlike holding stock, option holdings get larger and larger over time. 
 
-View locally:
+Additionally, LEAPS are 50-70% cheaper than stock, so one can "control" up to 100% more stock than by purchasing the stock outright. 
 
-```
-cd docs && python3 -m http.server 8765
-# open http://127.0.0.1:8765/
-```
+There is more risk. 
 
-This repo is public, so `performance.json` has no dollar amounts or account names.
-Accounts appear as "Account ##" (last two digits of the account number), and each
-account and the total are indexed to 100 on the first Friday. The page shows only
-% changes, plus the IBRX share price. The real balances stay in the private crons
-repo's gitignored `data/`.
 
-`js/performance.js` was converted from `optionicity-app` `ui/src/performance.ts` and is
-now edited directly.
