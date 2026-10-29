@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Optionicity · Performance</title>
+    <link rel="stylesheet" href="css/performance.css" />
+  </head>
+  <body>
+    <main class="perf">
+      <header class="perf-head">
+        <div>
+          <div class="label">PERFORMANCE · FRIDAY CLOSE</div>
+          <h1 id="range">—</h1>
+        </div>
+      </header>
+      <div class="notice" id="notice" hidden></div>
+      <section class="tiles" id="tiles"></section>
+      <section class="card">
+        <div class="card-head">
+          <h2>% change since <span id="start">first Friday</span></h2>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="chart" id="line-chart"></div>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>Week-over-week % change: <span id="wow-title">total vs stock</span></h2>
+          <div class="legend" id="wow-legend"></div>
+        </div>
+        <div class="chart" id="bar-chart"></div>
+      </section>
+      <section class="card">
+        <h2>Weekly detail</h2>
+        <div class="table-wrap"><table id="table"></table></div>
+        <p class="foot">Returns come from Schwab's daily balances (no dollar amounts are shown), so deposits, withdrawals and transfers count as gains or losses.</p>
+      </section>
+      <div class="tip" id="tip" hidden></div>
+    </main>
+    <script type="module" src="js/performance.js"></script>
+  </body>
+</html>
