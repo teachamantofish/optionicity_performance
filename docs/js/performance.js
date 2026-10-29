@@ -1,6 +1,8 @@
 // Performance page: weekly (Friday) account values against the stock.
 // Reads data/performance.json, written by /home/ben/GIT/crons/optionicity_performance.
 // Plain JS (from optionicity-app ui/src/performance.ts), no build step.
+// The JSON holds % values already worked out (since the first Friday and week over
+// week); the site is public, so it has no balances. Only the stock has a raw value (its price).
 async function fetchPerformance() {
   const resp = await fetch("data/performance.json", { cache: "no-store" });
   if (!resp.ok) throw new Error(`${resp.status}: ${resp.statusText}`);
@@ -15,16 +17,6 @@ const signed = (v, digits = 2) => `${v >= 0 ? "+" : "\u2212"}${Math.abs(v).toFix
 const pctText = (v) => v == null ? "\u2014" : `${signed(v)}%`;
 const tone = (v) => v == null ? "" : v >= 0 ? "up" : "down";
 const shortDate = (iso) => `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}`;
-function cumulative(values) {
-  const base = values[0];
-  return values.map((v) => v == null || !base ? null : (v / base - 1) * 100);
-}
-function weekly(values) {
-  return values.map((v, i) => {
-    const prev = values[i - 1];
-    return i === 0 || v == null || !prev ? null : (v / prev - 1) * 100;
-  });
-}
 function el(tag, attrs, parent) {
   const node = document.createElementNS(SVG, tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
@@ -72,7 +64,7 @@ function renderLegend(container, series, onToggle) {
 }
 function renderLineChart(container, fridays, all) {
   const series = all.filter((s) => !hidden.has(s.id));
-  const cum = new Map(series.map((s) => [s.id, cumulative(s.values)]));
+  const cum = new Map(series.map((s) => [s.id, s.cum]));
   const width = Math.max(320, container.clientWidth);
   const height = width < 600 ? 260 : 380;
   const m = { top: 14, right: width < 600 ? 64 : 96, bottom: 28, left: 52 };
@@ -150,8 +142,8 @@ function renderLineChart(container, fridays, all) {
         dots[k].setAttribute("cx", String(x(i)));
         dots[k].setAttribute("cy", String(y(v)));
       }
-      const raw = s.values[i];
-      // Accounts are indexed (no dollars on the public site), so only the stock shows a raw value.
+      // No dollars on the public site, so only the stock shows a raw value (its price).
+      const raw = s.id === "bench" ? s.values[i] : null;
       const rawText = s.id !== "bench" ? "" : raw == null ? "\u2014" : `$${raw.toFixed(2)}`;
       return { v, html: `<div class="tip-row">${key(s)}<span>${s.label}</span><span class="num">${rawText}</span><span class="num ${tone(v)}">${pctText(v)}</span></div>` };
     }).sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity));
@@ -163,7 +155,7 @@ function renderLineChart(container, fridays, all) {
   });
 }
 function renderBarChart(container, fridays, pair) {
-  const wk = pair.map((s) => weekly(s.values));
+  const wk = pair.map((s) => s.week);
   const width = Math.max(320, container.clientWidth);
   const height = width < 600 ? 220 : 280;
   const m = { top: 12, right: 12, bottom: 28, left: 52 };
@@ -222,13 +214,13 @@ function renderBarChart(container, fridays, pair) {
 }
 function renderTiles(fridays, total, bench) {
   const first = shortDate(fridays[0]);
-  const t = cumulative(total.values).at(-1);
+  const t = total.cum.at(-1);
   const tiles = [
     `<div class="tile"><div class="label">TOTAL ACCOUNTS \xB7 ${shortDate(fridays.at(-1))}</div><div class="big ${tone(t)}">${pctText(t)}</div><div class="sub">since ${first}</div></div>`
   ];
   if (bench) {
-    const b = cumulative(bench.values).at(-1);
-    const tw = weekly(total.values), bw = weekly(bench.values);
+    const b = bench.cum.at(-1);
+    const tw = total.week, bw = bench.week;
     const beat = tw.filter((v, i) => v != null && bw[i] != null && v > bw[i]).length;
     const counted = tw.filter((v, i) => v != null && bw[i] != null).length;
     tiles.push(
@@ -240,15 +232,15 @@ function renderTiles(fridays, total, bench) {
   $("tiles").innerHTML = tiles.join("");
 }
 function renderTable(fridays, series, total, bench) {
-  const wk = new Map(series.map((s) => [s.id, weekly(s.values)]));
-  const cum = new Map(series.map((s) => [s.id, cumulative(s.values)]));
+  const wk = new Map(series.map((s) => [s.id, s.week]));
+  const cum = new Map(series.map((s) => [s.id, s.cum]));
   const head = `<tr><th>Friday</th>${series.map((s) => `<th>${s.label}</th>`).join("")}${bench ? `<th>Total \u2212 ${bench.label}<br>(week, pts)</th>` : ""}</tr>`;
   const body = fridays.map((d, i) => {
     const cells = series.map((s) => {
-      const v = s.values[i];
       const p = wk.get(s.id)[i];
       // Accounts show % since the first Friday (no dollars on the public site); the stock its price.
-      const text = v == null ? "\u2014" : s.id === "bench" ? `$${v.toFixed(2)}` : pctText(cum.get(s.id)[i]);
+      const price = s.id === "bench" ? s.values[i] : null;
+      const text = s.id !== "bench" ? pctText(cum.get(s.id)[i]) : price == null ? "\u2014" : `$${price.toFixed(2)}`;
       return `<td>${text}<span class="pct ${tone(p)}">${i ? pctText(p) : ""}</span></td>`;
     }).join("");
     const tw = wk.get(total.id)[i], bw = bench ? wk.get(bench.id)[i] : null;
@@ -273,15 +265,17 @@ function render(p) {
     id: `acct-${a.id}`,
     label: a.name,
     color: ACCOUNT_COLORS[i % ACCOUNT_COLORS.length],
-    values: a.values
+    cum: a.since_start,
+    week: a.week
   }));
   const total = {
     id: "total",
     label: "Total accounts",
     color: "var(--s5)",
-    values: p.total
+    cum: p.total.since_start,
+    week: p.total.week
   };
-  const bench = p.benchmark ? { id: "bench", label: p.symbol, color: "var(--bench)", dashed: true, values: p.benchmark } : null;
+  const bench = p.benchmark ? { id: "bench", label: p.symbol, color: "var(--bench)", dashed: true, values: p.benchmark.price, cum: p.benchmark.since_start, week: p.benchmark.week } : null;
   const lines = [...accounts, total, ...bench ? [bench] : []];
   let compare = total;
   const select = document.createElement("select");
